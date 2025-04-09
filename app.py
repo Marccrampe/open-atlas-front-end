@@ -90,7 +90,7 @@ with MemoryFile(tif_bytes) as memfile:
         norm_arr = (arr - min_val) / (max_val - min_val)
         norm_arr = np.nan_to_num(norm_arr)
 
-        colormap = linear.Viridis_09.scale(min_val, max_val)
+        colormap = linear.viridis.scale(min_val, max_val)
         colormap.caption = "Canopy Height (m)"
         colormap.add_to(m)
 
