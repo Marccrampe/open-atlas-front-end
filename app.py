@@ -9,18 +9,12 @@ from streamlit_folium import st_folium
 import folium
 from branca.colormap import linear
 from datetime import datetime
-import openai
 import re
 import os
 from matplotlib import cm
-from matplotlib.colors import Normalize
-import matplotlib.pyplot as plt
 
 st.set_page_config(layout="wide")
-st.title("🌳 OpenAtlas - Canopy Height Dashboard")
-
-# OpenAI client (new API >= 1.0.0)
-client = openai.OpenAI(api_key=st.secrets["openai"]["api_key"])
+st.title("🌳 OpenAtlas - Canopy Height Viewer")
 
 # GCS setup
 bucket_name = "gchm-predictions-test"
@@ -30,39 +24,36 @@ credentials = service_account.Credentials.from_service_account_info(st.secrets["
 client_gcs = storage.Client(credentials=credentials)
 bucket = client_gcs.bucket(bucket_name)
 
-# List TIF files in the bucket
+# List all prediction TIFs
 blobs = list(bucket.list_blobs(prefix=tif_prefix))
-tif_files = [blob.name for blob in blobs if blob.name.endswith(".tif")]
+tif_files = [blob.name for blob in blobs if blob.name.endswith("_predictions.tif")]
 
-if not tif_files:
-    st.warning("No .tif files found in the bucket.")
-    st.stop()
-
-# Extract dates using regex
-file_dates = {}
+# Extract AOI and dates
+aoi_dict = {}  # {AOI: {date: filepath}}
 for tif in tif_files:
     base = os.path.basename(tif)
-    match = re.search(r'\d{4}-\d{2}-\d{2}', base)
+    match = re.match(r"(.*)_([0-9]{4}-[0-9]{2}-[0-9]{2})_predictions\.tif", base)
     if match:
-        try:
-            date = datetime.strptime(match.group(), "%Y-%m-%d").date()
-            file_dates[tif] = date
-        except Exception as e:
-            print(f"Error parsing {base}: {e}")
-    else:
-        print(f"No valid date found in {base}")
+        aoi = match.group(1)
+        date_str = match.group(2)
+        if aoi not in aoi_dict:
+            aoi_dict[aoi] = {}
+        aoi_dict[aoi][date_str] = tif
 
-if not file_dates:
-    st.error("No valid date found in filenames.")
+if not aoi_dict:
+    st.error("No valid prediction TIFs found.")
     st.stop()
 
-# Select file
-options = [f"{os.path.basename(k)} ({v})" for k, v in file_dates.items()]
-selected_option = st.selectbox("Select a canopy height prediction file:", options)
-selected_file = list(file_dates.keys())[options.index(selected_option)]
-selected_date = file_dates[selected_file]
+# AOI selection
+selected_aoi = st.selectbox("Select Area of Interest (AOI)", sorted(aoi_dict.keys()))
 
-st.markdown(f"### 🛰️ File: `{selected_file}`  — Date: `{selected_date}`")
+# Date selection
+available_dates = sorted(aoi_dict[selected_aoi].keys())
+selected_date = st.selectbox("Select date", available_dates)
+
+# Get file path
+selected_file = aoi_dict[selected_aoi][selected_date]
+st.markdown(f"### 🛰️ File: `{selected_file}`")
 
 # Load TIF
 blob = bucket.blob(selected_file)
@@ -90,15 +81,13 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
-        # Normalize and colorize with viridis
         norm_arr = (arr - min_val) / (max_val - min_val)
         norm_arr = np.nan_to_num(norm_arr)
 
         viridis = cm.get_cmap("viridis")
-        rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)  # RGBA image
-        rgb_img = rgba_img[:, :, :3]  # Drop alpha
+        rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)
+        rgb_img = rgba_img[:, :, :3]
 
-        # Add color legend
         colormap = linear.viridis.scale(min_val, max_val)
         colormap.caption = "Canopy Height (m)"
         colormap.add_to(m)
@@ -109,11 +98,8 @@ with MemoryFile(tif_bytes) as memfile:
             opacity=0.6,
             name="Canopy Height"
         ).add_to(m)
-        
 
         folium.LayerControl().add_to(m)
-
-        # Add click marker
         m.add_child(folium.LatLngPopup())
 
         result = st_folium(m, width=1000, height=600)
@@ -129,30 +115,3 @@ with MemoryFile(tif_bytes) as memfile:
                     st.success(f"🌲 Canopy height at ({lat:.5f}, {lon:.5f}) is **{height_val:.2f} m**")
                 except:
                     st.error("Invalid pixel location.")
-
-# LLM Analysis
-st.markdown("### 🤖 Biodiversity Analysis by GPT")
-
-prompt = f"""
-You are an environmental analyst. Based on the following canopy height data, write a short, insightful summary on the vegetation structure and biodiversity potential.
-
-- Date: {selected_date}
-- Mean canopy height: {mean_val:.2f} meters
-- Minimum: {min_val:.2f} m, Maximum: {max_val:.2f} m
-
-Explain what this suggests about the forest maturity and biodiversity. Keep it under 100 words.
-"""
-
-try:
-    with st.spinner("Analyzing with GPT..."):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a remote sensing expert."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        summary = response.choices[0].message.content
-        st.success(summary)
-except Exception as e:
-    st.error(f"OpenAI error: {e}")
