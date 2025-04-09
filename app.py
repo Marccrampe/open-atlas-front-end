@@ -27,36 +27,33 @@ blobs = list(bucket.list_blobs(prefix=tif_prefix))
 tif_files = [blob.name for blob in blobs if blob.name.endswith(".tif")]
 
 if not tif_files:
-    st.warning("Aucun fichier .tif trouvé dans le bucket.")
+    st.warning("No .tif files found in the bucket.")
     st.stop()
 
-# Nouveau format: zone_YYYY-MM-DD_predictions.tif
+# Extract date from format: zone_YYYY-MM-DD_predictions.tif
 file_dates = {}
 for tif in tif_files:
     base = os.path.basename(tif)
     try:
-        date_str = base.split("_")[1]  # Extrait '2019-03-01'
+        date_str = base.split("_")[1]  # e.g., 2019-03-01
         date = datetime.strptime(date_str, "%Y-%m-%d").date()
         file_dates[tif] = date
-    except Exception as e:
-        print(f"Erreur lecture date pour {base} : {e}")
+    except:
         continue
 
 if not file_dates:
-    st.error("Aucune date valide n’a été détectée dans les fichiers .tif.")
+    st.error("No valid date found in TIF filenames.")
     st.stop()
 
-# Tri par date
-sorted_files = sorted(file_dates.items(), key=lambda x: x[1])
-dates = [item[1] for item in sorted_files]
-files_sorted = [item[0] for item in sorted_files]
+# Let user select a file manually
+options = [f"{os.path.basename(k)} ({v})" for k, v in file_dates.items()]
+selected_option = st.selectbox("Select a canopy height prediction file:", options)
 
-# Time slider
-selected_idx = st.slider("📅 Sélectionnez une date", 0, len(dates) - 1, len(dates) - 1,
-                         format="DD/MM/YYYY")
-selected_file = files_sorted[selected_idx]
-selected_date = dates[selected_idx]
-st.markdown(f"### 🛰️ Fichier sélectionné : `{selected_file}` ({selected_date})")
+# Extract back the filename
+selected_file = list(file_dates.keys())[options.index(selected_option)]
+selected_date = file_dates[selected_file]
+
+st.markdown(f"### 🛰️ File: `{selected_file}`  — Date: `{selected_date}`")
 
 # Load selected TIF
 blob = bucket.blob(selected_file)
@@ -73,28 +70,42 @@ with MemoryFile(tif_bytes) as memfile:
         mean_val = np.nanmean(arr)
         min_val = np.nanmin(arr)
         max_val = np.nanmax(arr)
-        surface_gt3 = np.sum(arr > 3) * abs(transform[0] * transform[4]) / 10000  # en hectares
+        surface_gt3 = np.sum(arr > 3) * abs(transform[0] * transform[4]) / 10000  # hectares
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("🌿 Moyenne (m)", f"{mean_val:.2f}")
-        col2.metric("🔻 Min (m)", f"{min_val:.2f}")
-        col3.metric("🔺 Max (m)", f"{max_val:.2f}")
-        col4.metric("🟩 Surface > 3m", f"{surface_gt3:.2f} ha")
+        col1.metric("🌿 Mean height", f"{mean_val:.2f} m")
+        col2.metric("🔻 Min height", f"{min_val:.2f} m")
+        col3.metric("🔺 Max height", f"{max_val:.2f} m")
+        col4.metric("🟩 Area > 3m", f"{surface_gt3:.2f} ha")
 
-        # Carte
+        # Map display
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
-        m = folium.Map(location=center, zoom_start=12)
+        m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
+
+        # Normalize image for overlay
+        norm_arr = arr.copy()
+        norm_arr = (norm_arr - np.nanmin(norm_arr)) / (np.nanmax(norm_arr) - np.nanmin(norm_arr))
+        norm_arr = np.nan_to_num(norm_arr)
+
         folium.raster_layers.ImageOverlay(
-            image=arr,
+            image=norm_arr,
             bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
             opacity=0.6,
-            colormap=lambda x: (1, 0, 0, x) if x else (0, 0, 0, 0)
+            colormap=lambda x: (1, 0.4, 0, x),  # orange gradient
+            name="Canopy Height"
         ).add_to(m)
+
         folium.LayerControl().add_to(m)
         folium_static(m, width=1000, height=600)
 
-# Chatbox (placeholder)
-st.markdown("### 🤖 Résumé par IA (simulation)")
-prompt = st.text_area("Pose une question sur la zone visualisée (biodiversité, EUDR...)")
-if st.button("Analyser"):
-    st.success("🔍 Résumé automatique : Cette zone présente une canopée développée avec une couverture > 3m significative. Cela peut indiquer une maturité écologique favorable à la biodiversité.")
+# Auto-generated report
+st.markdown("### 🤖 Automated Biodiversity Report")
+
+st.info(f"""
+**Canopy Summary for {selected_date}:**
+
+- The average canopy height in the selected area is **{mean_val:.2f} meters**, with values ranging from **{min_val:.2f} m** to **{max_val:.2f} m**.
+- A total area of **{surface_gt3:.2f} hectares** is covered by trees taller than 3 meters.
+- This structure indicates a likely presence of mature vegetation, potentially supporting a rich biodiversity.
+- Such canopy characteristics may also align with sustainability and EUDR compliance indicators.
+""")
