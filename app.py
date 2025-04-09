@@ -12,6 +12,9 @@ from datetime import datetime
 import openai
 import re
 import os
+from matplotlib import cm
+from matplotlib.colors import Normalize
+import matplotlib.pyplot as plt
 
 st.set_page_config(layout="wide")
 st.title("🌳 OpenAtlas - Canopy Height Dashboard")
@@ -87,20 +90,26 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
+        # Normalize and colorize with viridis
         norm_arr = (arr - min_val) / (max_val - min_val)
         norm_arr = np.nan_to_num(norm_arr)
 
+        viridis = cm.get_cmap("viridis")
+        rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)  # RGBA image
+        rgb_img = rgba_img[:, :, :3]  # Drop alpha
+
+        # Add color legend
         colormap = linear.viridis.scale(min_val, max_val)
         colormap.caption = "Canopy Height (m)"
         colormap.add_to(m)
 
-        img_overlay = folium.raster_layers.ImageOverlay(
-            image=norm_arr,
+        folium.raster_layers.ImageOverlay(
+            image=rgb_img,
             bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
             opacity=0.6,
-            colormap=lambda x: colormap(x * (max_val - min_val) + min_val),
             name="Canopy Height"
-        )
+        ).add_to(m)
+        
         img_overlay.add_to(m)
         folium.LayerControl().add_to(m)
 
