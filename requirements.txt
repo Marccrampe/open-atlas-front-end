@@ -1,0 +1,7 @@
+streamlit
+google-cloud-storage
+rasterio
+leafmap
+streamlit-folium
+numpy
+matplotlib
