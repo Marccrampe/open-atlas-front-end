@@ -5,14 +5,18 @@ import rasterio
 from rasterio.io import MemoryFile
 from google.cloud import storage
 from google.oauth2 import service_account
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import folium
 from datetime import datetime
-import io
+import openai
+import re
 import os
 
 st.set_page_config(layout="wide")
 st.title("🌳 OpenAtlas - Canopy Height Dashboard")
+
+# OpenAI API
+openai.api_key = st.secrets["openai"]["api_key"]
 
 # GCS setup
 bucket_name = "gchm-predictions-test"
@@ -30,26 +34,28 @@ if not tif_files:
     st.warning("No .tif files found in the bucket.")
     st.stop()
 
-# Extract date from format: zone_YYYY-MM-DD_predictions.tif
+# Extract dates from any position in the filename using regex
 file_dates = {}
 for tif in tif_files:
     base = os.path.basename(tif)
-    try:
-        date_str = base.split("_")[1]  # e.g., 2019-03-01
-        date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        file_dates[tif] = date
-    except:
-        continue
+    match = re.search(r'\d{4}-\d{2}-\d{2}', base)
+    if match:
+        try:
+            date = datetime.strptime(match.group(), "%Y-%m-%d").date()
+            file_dates[tif] = date
+        except Exception as e:
+            print(f"Error parsing {base}: {e}")
+    else:
+        print(f"No valid date found in {base}")
 
 if not file_dates:
-    st.error("No valid date found in TIF filenames.")
+    st.error("No valid date found in filenames.")
     st.stop()
 
-# Let user select a file manually
+# Selectbox to choose file
 options = [f"{os.path.basename(k)} ({v})" for k, v in file_dates.items()]
 selected_option = st.selectbox("Select a canopy height prediction file:", options)
 
-# Extract back the filename
 selected_file = list(file_dates.keys())[options.index(selected_option)]
 selected_date = file_dates[selected_file]
 
@@ -78,11 +84,10 @@ with MemoryFile(tif_bytes) as memfile:
         col3.metric("🔺 Max height", f"{max_val:.2f} m")
         col4.metric("🟩 Area > 3m", f"{surface_gt3:.2f} ha")
 
-        # Map display
+        # Map
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
-        # Normalize image for overlay
         norm_arr = arr.copy()
         norm_arr = (norm_arr - np.nanmin(norm_arr)) / (np.nanmax(norm_arr) - np.nanmin(norm_arr))
         norm_arr = np.nan_to_num(norm_arr)
@@ -91,21 +96,36 @@ with MemoryFile(tif_bytes) as memfile:
             image=norm_arr,
             bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
             opacity=0.6,
-            colormap=lambda x: (1, 0.4, 0, x),  # orange gradient
+            colormap=lambda x: (1, 0.4, 0, x),
             name="Canopy Height"
         ).add_to(m)
 
         folium.LayerControl().add_to(m)
-        folium_static(m, width=1000, height=600)
+        st_folium(m, width=1000, height=600)
 
-# Auto-generated report
-st.markdown("### 🤖 Automated Biodiversity Report")
+# LLM Analysis
+st.markdown("### 🤖 Biodiversity Analysis by GPT")
 
-st.info(f"""
-**Canopy Summary for {selected_date}:**
+prompt = f"""
+You are an environmental analyst. Based on the following canopy height data, write a short, insightful summary on the vegetation structure and biodiversity potential.
 
-- The average canopy height in the selected area is **{mean_val:.2f} meters**, with values ranging from **{min_val:.2f} m** to **{max_val:.2f} m**.
-- A total area of **{surface_gt3:.2f} hectares** is covered by trees taller than 3 meters.
-- This structure indicates a likely presence of mature vegetation, potentially supporting a rich biodiversity.
-- Such canopy characteristics may also align with sustainability and EUDR compliance indicators.
-""")
+- Date: {selected_date}
+- Mean canopy height: {mean_val:.2f} meters
+- Minimum: {min_val:.2f} m, Maximum: {max_val:.2f} m
+- Total area above 3 meters: {surface_gt3:.2f} hectares
+
+Explain what this suggests about the forest maturity and biodiversity. Keep it under 100 words.
+"""
+
+try:
+    with st.spinner("Analyzing with GPT..."):
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a remote sensing expert."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        st.success(response.choices[0].message.content)
+except Exception as e:
+    st.error(f"OpenAI error: {e}")
