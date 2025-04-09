@@ -110,7 +110,7 @@ with MemoryFile(tif_bytes) as memfile:
             name="Canopy Height"
         ).add_to(m)
         
-        img_overlay.add_to(m)
+
         folium.LayerControl().add_to(m)
 
         # Add click marker
