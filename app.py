@@ -30,17 +30,21 @@ if not tif_files:
     st.warning("Aucun fichier .tif trouvé dans le bucket.")
     st.stop()
 
-# Extract dates from filenames assuming format: Predictions/zone_YYYYMMDD.tif
+# Nouveau format: zone_YYYY-MM-DD_predictions.tif
 file_dates = {}
 for tif in tif_files:
     base = os.path.basename(tif)
-    parts = base.split("_")
     try:
-        date_str = parts[-1].replace(".tif", "")
-        date = datetime.strptime(date_str, "%Y%m%d").date()
+        date_str = base.split("_")[1]  # Extrait '2019-03-01'
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
         file_dates[tif] = date
-    except:
+    except Exception as e:
+        print(f"Erreur lecture date pour {base} : {e}")
         continue
+
+if not file_dates:
+    st.error("Aucune date valide n’a été détectée dans les fichiers .tif.")
+    st.stop()
 
 # Tri par date
 sorted_files = sorted(file_dates.items(), key=lambda x: x[1])
