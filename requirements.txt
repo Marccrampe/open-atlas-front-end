@@ -6,3 +6,4 @@ leafmap
 streamlit-folium
 numpy
 matplotlib
+boto3
