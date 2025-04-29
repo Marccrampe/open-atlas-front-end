@@ -18,11 +18,14 @@ st.title("🌳 OpenAtlas - Canopy Height Viewer")
 s3_bucket_name = "canopy-marc"
 s3_prefix = "Predictions/"
 
-# Créez un client S3 avec des clés d'authentification AWS
+aws_access_key = st.secrets["aws"]["aws_access_key"]
+aws_secret_key = st.secrets["aws"]["aws_secret_key"]
+
+# Créer un client S3 avec boto3
 s3_client = boto3.client(
     's3', 
-    aws_access_key_id=st.secrets["aws_access_key"],  # Ajoutez vos secrets dans .streamlit/secrets.toml
-    aws_secret_access_key=st.secrets["aws_secret_key"]
+    aws_access_key_id=aws_access_key, 
+    aws_secret_access_key=aws_secret_key
 )
 
 # Liste des fichiers .tif dans le bucket S3
