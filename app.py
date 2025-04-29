@@ -15,7 +15,7 @@ st.set_page_config(layout="wide")
 st.title("🌳 OpenAtlas - Canopy Height Viewer")
 
 # Configuration S3
-s3_bucket_name = "your-s3-bucket-name"
+s3_bucket_name = "canopy-marc"
 s3_prefix = "Predictions/"
 
 # Créez un client S3 avec des clés d'authentification AWS
