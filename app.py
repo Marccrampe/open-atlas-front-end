@@ -1,64 +1,76 @@
-
 import streamlit as st
 import numpy as np
-import rasterio
-from rasterio.io import MemoryFile
-from google.cloud import storage
-from google.oauth2 import service_account
+import boto3
+from io import BytesIO
 from streamlit_folium import st_folium
 import folium
 from branca.colormap import linear
-from datetime import datetime
-import re
-import os
+import rasterio
+from rasterio.io import MemoryFile
 from matplotlib import cm
+import os
+import re
 
 st.set_page_config(layout="wide")
 st.title("🌳 OpenAtlas - Canopy Height Viewer")
 
-# GCS setup
-bucket_name = "gchm-predictions-test"
-tif_prefix = "Predictions/"
+# Configuration S3
+s3_bucket_name = "your-s3-bucket-name"
+s3_prefix = "Predictions/"
 
-credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
-client_gcs = storage.Client(credentials=credentials)
-bucket = client_gcs.bucket(bucket_name)
+# Créez un client S3 avec des clés d'authentification AWS
+s3_client = boto3.client(
+    's3', 
+    aws_access_key_id=st.secrets["aws_access_key"],  # Ajoutez vos secrets dans .streamlit/secrets.toml
+    aws_secret_access_key=st.secrets["aws_secret_key"]
+)
 
-# List all prediction TIFs
-blobs = list(bucket.list_blobs(prefix=tif_prefix))
-tif_files = [blob.name for blob in blobs if blob.name.endswith("_predictions.tif")]
+# Liste des fichiers .tif dans le bucket S3
+def list_tif_files_from_s3(bucket_name, prefix):
+    response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+    tif_files = [obj['Key'] for obj in response.get('Contents', []) if obj['Key'].endswith("_predictions.tif")]
+    return tif_files
 
-# Extract AOI and dates
-aoi_dict = {}  # {AOI: {date: filepath}}
-for tif in tif_files:
-    base = os.path.basename(tif)
-    match = re.match(r"(.*)_([0-9]{4}-[0-9]{2}-[0-9]{2})_predictions\.tif", base)
-    if match:
-        aoi = match.group(1)
-        date_str = match.group(2)
-        if aoi not in aoi_dict:
-            aoi_dict[aoi] = {}
-        aoi_dict[aoi][date_str] = tif
+# Extraire AOI et dates des fichiers TIF
+def extract_aoi_and_dates(tif_files):
+    aoi_dict = {}  # {AOI: {date: filepath}}
+    for tif in tif_files:
+        base = os.path.basename(tif)
+        match = re.match(r"(.*)_([0-9]{4}-[0-9]{2}-[0-9]{2})_predictions\.tif", base)
+        if match:
+            aoi = match.group(1)
+            date_str = match.group(2)
+            if aoi not in aoi_dict:
+                aoi_dict[aoi] = {}
+            aoi_dict[aoi][date_str] = tif
+    return aoi_dict
+
+# Liste des fichiers TIF dans S3
+tif_files = list_tif_files_from_s3(s3_bucket_name, s3_prefix)
+
+# Extraire AOI et dates
+aoi_dict = extract_aoi_and_dates(tif_files)
 
 if not aoi_dict:
     st.error("No valid prediction TIFs found.")
     st.stop()
 
-# AOI selection
+# Sélection de l'AOI
 selected_aoi = st.selectbox("Select Area of Interest (AOI)", sorted(aoi_dict.keys()))
 
-# Date selection
+# Sélection de la date
 available_dates = sorted(aoi_dict[selected_aoi].keys())
 selected_date = st.selectbox("Select date", available_dates)
 
-# Get file path
+# Récupérer le chemin du fichier sélectionné
 selected_file = aoi_dict[selected_aoi][selected_date]
 st.markdown(f"### 🛰️ File: `{selected_file}`")
 
-# Load TIF
-blob = bucket.blob(selected_file)
-tif_bytes = blob.download_as_bytes()
+# Télécharger le fichier TIFF depuis S3
+tif_obj = s3_client.get_object(Bucket=s3_bucket_name, Key=selected_file)
+tif_bytes = tif_obj['Body'].read()
 
+# Charger le TIFF
 with MemoryFile(tif_bytes) as memfile:
     with memfile.open() as src:
         arr = src.read(1).astype(np.float32)
