@@ -198,18 +198,15 @@ else:
     ).add_to(m_change)
 
     folium.LayerControl().add_to(m_change)
-    m_change.add_child(folium.LatLngPopup())
 
     # Affichage de la carte dans Streamlit
     st.markdown("### 🌍 Canopy Change Visualization")
-    st_folium(m_change, width=1000, height=600)
+    result_change = st_folium(m_change, width=1000, height=600)
 
     # Récupérer les coordonnées du clic sur la carte et afficher la hauteur
-    result_change = st_folium(m_change, width=1000, height=600)
     if result_change.get("last_clicked"):
         lat = result_change["last_clicked"]["lat"]
         lon = result_change["last_clicked"]["lng"]
         row, col = start_src_change.index(lon, lat)  # Conversion des coordonnées en index pixel
         height_val = canopy_change[row, col]  # Hauteur du canopy au point sélectionné
         st.success(f"🌲 Canopy height at ({lat:.5f}, {lon:.5f}) is **{height_val:.2f} m**")
-
