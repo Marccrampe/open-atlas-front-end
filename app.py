@@ -78,15 +78,15 @@ tif_bytes = tif_obj['Body'].read()
 with MemoryFile(tif_bytes) as memfile:
     with memfile.open() as src:
         arr = src.read(1).astype(np.float32)
-        arr[arr <= 0] = np.nan
+        arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
         bounds = src.bounds
         transform = src.transform
         height, width = arr.shape
 
-        # Stats
-        mean_val = np.nanmean(arr)
-        min_val = np.nanmin(arr)
-        max_val = np.nanmax(arr)
+        # Stats en ignorant les NaN
+        mean_val = np.nanmean(arr)  # Moyenne sans NaN
+        min_val = np.nanmin(arr)    # Min sans NaN
+        max_val = np.nanmax(arr)    # Max sans NaN
 
         col1, col2, col3 = st.columns(3)
         col1.metric("🌿 Mean height", f"{mean_val:.2f} m")
@@ -97,10 +97,16 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
-        # Gestion des NaN avant la normalisation
-        arr = np.nan_to_num(arr, nan=0)  # Remplacer les NaN par 0
-        norm_arr = (arr - min_val) / (max_val - min_val)
-        norm_arr = np.nan_to_num(norm_arr)  # S'assurer qu'il n'y a pas de NaN après la normalisation
+        # Fonction de gestion des NaN et normalisation
+        def normalize_array(arr):
+            # Normaliser en ignorant les NaN
+            min_val = np.nanmin(arr)
+            max_val = np.nanmax(arr)
+            norm_arr = (arr - min_val) / (max_val - min_val)
+            return norm_arr
+
+        # Normaliser l'image
+        norm_arr = normalize_array(arr)
 
         # Utilisation de la nouvelle méthode matplotlib
         viridis = plt.cm.viridis
