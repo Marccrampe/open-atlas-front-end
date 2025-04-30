@@ -4,6 +4,7 @@ import boto3
 from io import BytesIO
 from streamlit_folium import st_folium
 import folium
+import matplotlib.pyplot as plt
 from branca.colormap import linear
 import rasterio
 from rasterio.io import MemoryFile
@@ -33,16 +34,7 @@ def list_tif_files_from_s3(bucket_name, prefix):
     response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
     tif_files = [obj['Key'] for obj in response.get('Contents', []) if obj['Key'].endswith("_predictions.tif")]
     return tif_files
-    
-# Fonction pour charger les données des fichiers TIFF
-def load_tif_data(tif_bytes):
-    with MemoryFile(tif_bytes) as memfile:
-        with memfile.open() as src:
-            arr = src.read(1).astype(np.float32)
-            arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
-            bounds = src.bounds
-            return arr, bounds
-            
+
 # Extraire AOI et dates des fichiers TIF
 def extract_aoi_and_dates(tif_files):
     aoi_dict = {}  # {AOI: {date: filepath}}
@@ -108,9 +100,10 @@ with MemoryFile(tif_bytes) as memfile:
         norm_arr = (arr - min_val) / (max_val - min_val)
         norm_arr = np.nan_to_num(norm_arr)
 
-        viridis = cm.get_cmap("viridis")
+        # Utilisation de la nouvelle méthode matplotlib
+        viridis = plt.cm.viridis
         rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)
-        rgb_img = rgba_img[:, :, :3]
+        rgb_img = rgba_img[:, :, :3]  # Enlever la couche alpha
 
         colormap = linear.viridis.scale(min_val, max_val)
         colormap.caption = "Canopy Height (m)"
@@ -156,6 +149,14 @@ tif_obj_2 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_2)
 tif_bytes_2 = tif_obj_2['Body'].read()
 
 # Charger les données des deux dates
+def load_tif_data(tif_bytes):
+    with MemoryFile(tif_bytes) as memfile:
+        with memfile.open() as src:
+            arr = src.read(1).astype(np.float32)
+            arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
+            bounds = src.bounds
+            return arr, bounds
+
 arr_1, bounds_1 = load_tif_data(tif_bytes_1)
 arr_2, bounds_2 = load_tif_data(tif_bytes_2)
 
@@ -164,7 +165,7 @@ canopy_change = arr_2 - arr_1
 
 # Map for canopy change
 st.markdown("### Map of Canopy Change")
-m_change = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13)
+m_change = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13, tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}")
 colormap_change = linear.PuBu_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
 colormap_change.caption = "Canopy Change (m)"
 colormap_change.add_to(m_change)
@@ -193,7 +194,7 @@ else:
     st.success("🌳 No significant loss detected!")
 
 # Afficher les cartes EWS avec le seuil d'alerte
-m_ews = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13)
+m_ews = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13, tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}")
 colormap_ews = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
 colormap_ews.caption = "Canopy Change (m)"
 colormap_ews.add_to(m_ews)
