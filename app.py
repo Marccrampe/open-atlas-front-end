@@ -97,8 +97,9 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
+        # Gestion des NaN avant la normalisation
         norm_arr = (arr - min_val) / (max_val - min_val)
-        norm_arr = np.nan_to_num(norm_arr)
+        norm_arr = np.nan_to_num(norm_arr)  # Remplacer les NaN par 0
 
         # Utilisation de la nouvelle méthode matplotlib
         viridis = plt.cm.viridis
@@ -149,14 +150,6 @@ tif_obj_2 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_2)
 tif_bytes_2 = tif_obj_2['Body'].read()
 
 # Charger les données des deux dates
-def load_tif_data(tif_bytes):
-    with MemoryFile(tif_bytes) as memfile:
-        with memfile.open() as src:
-            arr = src.read(1).astype(np.float32)
-            arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
-            bounds = src.bounds
-            return arr, bounds
-
 arr_1, bounds_1 = load_tif_data(tif_bytes_1)
 arr_2, bounds_2 = load_tif_data(tif_bytes_2)
 
