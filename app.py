@@ -200,7 +200,12 @@ alert_threshold = 0.10  # Seuil de perte de 10%
 # Calculer le pourcentage de perte de canopée
 loss_area = np.count_nonzero(canopy_change < 0)
 total_area = np.count_nonzero(~np.isnan(canopy_change))
-loss_percentage = loss_area / total_area
+
+# Éviter la division par zéro
+if total_area == 0:
+    loss_percentage = 0
+else:
+    loss_percentage = loss_area / total_area
 
 if loss_percentage > alert_threshold:
     st.warning(f"🚨 Early Warning: Canopy loss exceeds {alert_threshold * 100}%!")
