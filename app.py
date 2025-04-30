@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from branca.colormap import linear
 import rasterio
 from rasterio.io import MemoryFile
-from matplotlib import cm
 import os
 import re
 
