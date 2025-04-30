@@ -200,12 +200,7 @@ else:
     st.success("🌳 No significant loss detected!")
 
 # Afficher les cartes EWS avec le seuil d'alerte
-m_ews = folium.Map(
-    location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2],
-    zoom_start=13,
-    tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-    attr="Google Satellite"  # Attribution pour Google Satellite
-)
+m_ews = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13, tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", attr="Google Satellite")
 colormap_ews = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
 colormap_ews.caption = "Canopy Change (m)"
 colormap_ews.add_to(m_ews)
