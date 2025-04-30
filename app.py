@@ -163,6 +163,10 @@ arr_2, bounds_2 = load_tif_data(tif_bytes_2)
 # Calculer le changement de la canopée (sans normalisation)
 canopy_change = arr_2 - arr_1
 
+# Vérification des données avant affichage
+st.write("Canopy Change (raw):")
+st.write(canopy_change)
+
 # Map for canopy change
 st.markdown("### Map of Canopy Change")
 m_change = folium.Map(
