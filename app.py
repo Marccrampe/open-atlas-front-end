@@ -181,7 +181,7 @@ else:
     norm_change = np.nan_to_num(norm_change)  # Remplacer les NaN par 0
 
     # Utilisation de la méthode matplotlib pour les couleurs
-    cmap = plt.cm.RdBu  # Utilisation d'un colormap valide
+    cmap = plt.cm.RdYlGn  # Colormap allant du rouge au vert
     rgba_img_change = (cmap(norm_change) * 255).astype(np.uint8)
     rgb_img_change = rgba_img_change[:, :, :3]  # Enlever la couche alpha
 
@@ -193,7 +193,7 @@ else:
     folium.raster_layers.ImageOverlay(
         image=rgb_img_change,
         bounds=[[start_src_change.bounds.bottom, start_src_change.bounds.left], [start_src_change.bounds.top, start_src_change.bounds.right]],
-        opacity=0.6,
+        opacity=0.4,  # Moins opaque
         name="Canopy Change"
     ).add_to(m_change)
 
@@ -203,3 +203,13 @@ else:
     # Affichage de la carte dans Streamlit
     st.markdown("### 🌍 Canopy Change Visualization")
     st_folium(m_change, width=1000, height=600)
+
+    # Récupérer les coordonnées du clic sur la carte et afficher la hauteur
+    result_change = st_folium(m_change, width=1000, height=600)
+    if result_change.get("last_clicked"):
+        lat = result_change["last_clicked"]["lat"]
+        lon = result_change["last_clicked"]["lng"]
+        row, col = start_src_change.index(lon, lat)  # Conversion des coordonnées en index pixel
+        height_val = canopy_change[row, col]  # Hauteur du canopy au point sélectionné
+        st.success(f"🌲 Canopy height at ({lat:.5f}, {lon:.5f}) is **{height_val:.2f} m**")
+
