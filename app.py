@@ -96,12 +96,13 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")  # Utilisation du fond Esri
 
-        # Appliquer un facteur pour amplifier la visualisation
-        canopy_change = arr * 10  # Multiplier par 10 pour amplifier les différences
+        # Normalisation (sans NaN)
+        norm_arr = (arr - min_val) / (max_val - min_val)
+        norm_arr = np.nan_to_num(norm_arr)  # Remplacer les NaN par 0
 
         # Utilisation de la méthode matplotlib pour les couleurs
         viridis = plt.cm.viridis
-        rgba_img = (viridis(canopy_change) * 255).astype(np.uint8)
+        rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)
         rgb_img = rgba_img[:, :, :3]  # Enlever la couche alpha
 
         colormap = linear.viridis.scale(min_val, max_val)
@@ -131,61 +132,3 @@ with MemoryFile(tif_bytes) as memfile:
                     st.success(f"🌲 Canopy height at ({lat:.5f}, {lon:.5f}) is **{height_val:.2f} m**")
                 except:
                     st.error("Invalid pixel location.")
-
-# 2. Section Canopy Change between Dates
-st.markdown("### 2. Canopy Cover Change between Dates")
-selected_date_1 = st.selectbox("Select First Date", available_dates, key="date_1")
-selected_date_2 = st.selectbox("Select Second Date", available_dates, key="date_2")
-
-# Télécharger les fichiers TIFF pour les deux dates
-file_1 = aoi_dict[selected_aoi][selected_date_1]
-file_2 = aoi_dict[selected_aoi][selected_date_2]
-
-tif_obj_1 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_1)
-tif_bytes_1 = tif_obj_1['Body'].read()
-
-tif_obj_2 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_2)
-tif_bytes_2 = tif_obj_2['Body'].read()
-
-# Charger les données des deux dates
-def load_tif_data(tif_bytes):
-    with MemoryFile(tif_bytes) as memfile:
-        with memfile.open() as src:
-            arr = src.read(1).astype(np.float32)
-            arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
-            bounds = src.bounds
-            return arr, bounds
-
-arr_1, bounds_1 = load_tif_data(tif_bytes_1)
-arr_2, bounds_2 = load_tif_data(tif_bytes_2)
-
-# Calculer le changement de la canopée (sans normalisation)
-canopy_change = arr_2 - arr_1
-
-# Vérification des données avant affichage
-st.write("Canopy Change (raw):")
-st.write(canopy_change)
-
-# Map for canopy change
-st.markdown("### Map of Canopy Change")
-m_change = folium.Map(
-    location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2],
-    zoom_start=13,
-    tiles="Esri.WorldImagery",  # Utilisation du fond Esri
-    attr="Esri"  # Attribution pour Esri World Imagery
-)
-
-# Création d'un colormap rouge-vert pour le changement de canopée
-colormap_change = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
-colormap_change.caption = "Canopy Change (m)"
-colormap_change.add_to(m_change)
-
-# Afficher l'image du changement de la canopée
-folium.raster_layers.ImageOverlay(
-    image=canopy_change,
-    bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
-    opacity=0.6,
-    name="Canopy Change"
-).add_to(m_change)
-
-st_folium(m_change, width=1000, height=600)
