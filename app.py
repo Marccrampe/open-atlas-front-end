@@ -78,30 +78,30 @@ tif_bytes = tif_obj['Body'].read()
 with MemoryFile(tif_bytes) as memfile:
     with memfile.open() as src:
         arr = src.read(1).astype(np.float32)
-        arr[arr <= 0] = np.nan
+        arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
         bounds = src.bounds
         transform = src.transform
         height, width = arr.shape
 
-        # Stats
-        mean_val = np.nanmean(arr)
-        min_val = np.nanmin(arr)
-        max_val = np.nanmax(arr)
+        # Stats en ignorant les NaN
+        mean_val = np.nanmean(arr)  # Moyenne sans NaN
+        min_val = np.nanmin(arr)    # Min sans NaN
+        max_val = np.nanmax(arr)    # Max sans NaN
 
         col1, col2, col3 = st.columns(3)
         col1.metric("🌿 Mean height", f"{mean_val:.2f} m")
         col2.metric("🔻 Min height", f"{min_val:.2f} m")
         col3.metric("🔺 Max height", f"{max_val:.2f} m")
 
-        # Map
+        # Map pour la hauteur de la canopée
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
-        m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
+        m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")  # Utilisation du fond Esri
 
         # Gestion des NaN avant la normalisation
         norm_arr = (arr - min_val) / (max_val - min_val)
         norm_arr = np.nan_to_num(norm_arr)  # Remplacer les NaN par 0
 
-        # Utilisation de la nouvelle méthode matplotlib
+        # Utilisation de la méthode matplotlib pour les couleurs
         viridis = plt.cm.viridis
         rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)
         rgb_img = rgba_img[:, :, :3]  # Enlever la couche alpha
@@ -150,10 +150,18 @@ tif_obj_2 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_2)
 tif_bytes_2 = tif_obj_2['Body'].read()
 
 # Charger les données des deux dates
+def load_tif_data(tif_bytes):
+    with MemoryFile(tif_bytes) as memfile:
+        with memfile.open() as src:
+            arr = src.read(1).astype(np.float32)
+            arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
+            bounds = src.bounds
+            return arr, bounds
+
 arr_1, bounds_1 = load_tif_data(tif_bytes_1)
 arr_2, bounds_2 = load_tif_data(tif_bytes_2)
 
-# Calculer le changement de la canopée
+# Calculer le changement de la canopée (sans normalisation)
 canopy_change = arr_2 - arr_1
 
 # Map for canopy change
@@ -161,8 +169,8 @@ st.markdown("### Map of Canopy Change")
 m_change = folium.Map(
     location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2],
     zoom_start=13,
-    tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-    attr="Google Satellite"  # Attribution pour Google Satellite
+    tiles="Esri.WorldImagery",  # Utilisation du fond Esri
+    attr="Esri"  # Attribution pour Esri World Imagery
 )
 
 colormap_change = linear.PuBu_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
@@ -170,39 +178,10 @@ colormap_change.caption = "Canopy Change (m)"
 colormap_change.add_to(m_change)
 
 folium.raster_layers.ImageOverlay(
-    image=(canopy_change - np.nanmin(canopy_change)) / (np.nanmax(canopy_change) - np.nanmin(canopy_change)),
+    image=canopy_change,
     bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
     opacity=0.6,
     name="Canopy Change"
 ).add_to(m_change)
 
 st_folium(m_change, width=1000, height=600)
-
-# 3. Section EWS Alert - Canopy Loss
-st.markdown("### 3. Early Warning System (EWS) - Canopy Loss")
-alert_threshold = 0.10  # Seuil de perte de 10%
-
-# Calculer le pourcentage de perte de canopée
-loss_area = np.count_nonzero(canopy_change < 0)
-total_area = np.count_nonzero(~np.isnan(canopy_change))
-loss_percentage = loss_area / total_area
-
-if loss_percentage > alert_threshold:
-    st.warning(f"🚨 Early Warning: Canopy loss exceeds {alert_threshold * 100}%!")
-else:
-    st.success("🌳 No significant loss detected!")
-
-# Afficher les cartes EWS avec le seuil d'alerte
-m_ews = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13, tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", attr="Google Satellite")
-colormap_ews = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
-colormap_ews.caption = "Canopy Change (m)"
-colormap_ews.add_to(m_ews)
-
-folium.raster_layers.ImageOverlay(
-    image=(canopy_change - np.nanmin(canopy_change)) / (np.nanmax(canopy_change) - np.nanmin(canopy_change)),
-    bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
-    opacity=0.6,
-    name="Canopy Change"
-).add_to(m_ews)
-
-st_folium(m_ews, width=1000, height=600)
