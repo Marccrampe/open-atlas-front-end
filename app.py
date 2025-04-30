@@ -185,12 +185,12 @@ if compute_change_button:
         norm_change = np.nan_to_num(norm_change)  # Remplacer les NaN par 0
 
         # Utilisation de la méthode matplotlib pour les couleurs
-        cmap = plt.cm.RdYlGn  # Utilisation d'un colormap avec rouge pour négatif et vert pour positif
+        cmap = plt.cm.RdBu  # Utilisation d'un colormap valide
         rgba_img_change = (cmap(norm_change) * 255).astype(np.uint8)
         rgb_img_change = rgba_img_change[:, :, :3]  # Enlever la couche alpha
 
         # Ajouter la carte et la superposition de l'image
-        colormap_change = linear.RdYlGn.scale(min_change, max_change)
+        colormap_change = linear.RdBu.scale(min_change, max_change)  # Utilisation de RdBu au lieu de RdYlGn
         colormap_change.caption = "Canopy Height Change (m)"
         colormap_change.add_to(m_change)
 
