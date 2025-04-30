@@ -98,8 +98,9 @@ with MemoryFile(tif_bytes) as memfile:
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
         # Gestion des NaN avant la normalisation
+        arr = np.nan_to_num(arr, nan=0)  # Remplacer les NaN par 0
         norm_arr = (arr - min_val) / (max_val - min_val)
-        norm_arr = np.nan_to_num(norm_arr)  # Remplacer les NaN par 0
+        norm_arr = np.nan_to_num(norm_arr)  # S'assurer qu'il n'y a pas de NaN après la normalisation
 
         # Utilisation de la nouvelle méthode matplotlib
         viridis = plt.cm.viridis
