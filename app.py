@@ -96,13 +96,12 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")  # Utilisation du fond Esri
 
-        # Normalisation (sans NaN)
-        norm_arr = (arr - min_val) / (max_val - min_val)
-        norm_arr = np.nan_to_num(norm_arr)  # Remplacer les NaN par 0
+        # Appliquer un facteur pour amplifier la visualisation
+        canopy_change = arr * 10  # Multiplier par 10 pour amplifier les différences
 
         # Utilisation de la méthode matplotlib pour les couleurs
         viridis = plt.cm.viridis
-        rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)
+        rgba_img = (viridis(canopy_change) * 255).astype(np.uint8)
         rgb_img = rgba_img[:, :, :3]  # Enlever la couche alpha
 
         colormap = linear.viridis.scale(min_val, max_val)
