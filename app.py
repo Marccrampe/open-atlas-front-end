@@ -65,7 +65,7 @@ selected_aoi = st.selectbox("Select Area of Interest (AOI)", sorted(aoi_dict.key
 available_dates = sorted(aoi_dict[selected_aoi].keys())
 selected_date = st.selectbox("Select date for Canopy Height", available_dates)
 
-# Récupérer le fichier TIF pour la date sélectionnée
+# Récupérer le chemin du fichier sélectionné
 selected_file = aoi_dict[selected_aoi][selected_date]
 st.markdown(f"### 🛰️ File: `{selected_file}`")
 
@@ -160,50 +160,35 @@ if compute_change_button:
     # Calcul de la différence entre les deux dates
     canopy_change = end_arr_change - start_arr_change
 
-    # Calcul des stats pour la différence
-    mean_change = np.nanmean(canopy_change)
-    min_change = np.nanmin(canopy_change)
-    max_change = np.nanmax(canopy_change)
+    # Appliquer un facteur pour rendre le changement plus visible
+    canopy_change = canopy_change * 10  # Multiplier par 10 pour amplifier les différences
 
-    # Affichage des résultats
-    st.markdown(f"### 🌿 Canopy Change between {start_date_change} and {end_date_change}")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🌿 Mean Change", f"{mean_change:.2f} m")
-    col2.metric("🔻 Min Change", f"{min_change:.2f} m")
-    col3.metric("🔺 Max Change", f"{max_change:.2f} m")
+    # Vérification des données avant affichage
+    st.write("Canopy Change (raw):")
+    st.write(canopy_change)
 
-    # --- Vérification des min_change et max_change ---
-    if np.isnan(min_change) or np.isnan(max_change):
-        st.error("Error: Invalid values for canopy change (NaN detected).")
-    else:
-        # Affichage de la carte avec la différence de hauteur de la canopée
-        center_change = [(start_src_change.bounds.top + start_src_change.bounds.bottom) / 2, (start_src_change.bounds.left + start_src_change.bounds.right) / 2]
-        m_change = folium.Map(location=center_change, zoom_start=13, tiles="Esri.WorldImagery")  # Fond ESRI
+    # Map for canopy change
+    st.markdown("### Map of Canopy Change")
+    m_change = folium.Map(
+        location=[(start_src_change.bounds.top + start_src_change.bounds.bottom) / 2, 
+                  (start_src_change.bounds.left + start_src_change.bounds.right) / 2],
+        zoom_start=13,
+        tiles="Esri.WorldImagery",  # Utilisation du fond Esri
+        attr="Esri"  # Attribution pour Esri World Imagery
+    )
 
-        # Normalisation de la différence
-        norm_change = (canopy_change - min_change) / (max_change - min_change)
-        norm_change = np.nan_to_num(norm_change)  # Remplacer les NaN par 0
+    # Création d'un colormap rouge-vert pour le changement de canopée
+    colormap_change = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
+    colormap_change.caption = "Canopy Change (m)"
+    colormap_change.add_to(m_change)
 
-        # Utilisation de la méthode matplotlib pour les couleurs
-        cmap = plt.cm.RdBu  # Utilisation d'un colormap valide
-        rgba_img_change = (cmap(norm_change) * 255).astype(np.uint8)
-        rgb_img_change = rgba_img_change[:, :, :3]  # Enlever la couche alpha
+    # Afficher l'image du changement de la canopée
+    folium.raster_layers.ImageOverlay(
+        image=canopy_change,
+        bounds=[[start_src_change.bounds.bottom, start_src_change.bounds.left], 
+                [start_src_change.bounds.top, start_src_change.bounds.right]],
+        opacity=0.6,
+        name="Canopy Change"
+    ).add_to(m_change)
 
-        # Ajouter la carte et la superposition de l'image
-        colormap_change = linear.RdYlGn_09.scale(min_change, max_change)
-        colormap_change.caption = "Canopy Height Change (m)"
-        colormap_change.add_to(m_change)
-
-        folium.raster_layers.ImageOverlay(
-            image=rgb_img_change,
-            bounds=[[start_src_change.bounds.bottom, start_src_change.bounds.left], [start_src_change.bounds.top, start_src_change.bounds.right]],
-            opacity=0.6,
-            name="Canopy Change"
-        ).add_to(m_change)
-
-        folium.LayerControl().add_to(m_change)
-        m_change.add_child(folium.LatLngPopup())
-
-        # Affichage de la carte dans Streamlit
-        st.markdown("### 🌍 Canopy Change Visualization")
-        result_change = st_folium(m_change, width=1000, height=600)
+    st_folium(m_change, width=1000, height=600)
