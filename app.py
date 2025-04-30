@@ -97,20 +97,9 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")
 
-        # Fonction de gestion des NaN et normalisation
-        def normalize_array(arr):
-            # Normaliser en ignorant les NaN
-            min_val = np.nanmin(arr)
-            max_val = np.nanmax(arr)
-            norm_arr = (arr - min_val) / (max_val - min_val)
-            return norm_arr
-
-        # Normaliser l'image
-        norm_arr = normalize_array(arr)
-
-        # Utilisation de la nouvelle méthode matplotlib
+        # Carte de la hauteur de la canopée
         viridis = plt.cm.viridis
-        rgba_img = (viridis(norm_arr) * 255).astype(np.uint8)
+        rgba_img = (viridis(arr) * 255).astype(np.uint8)
         rgb_img = rgba_img[:, :, :3]  # Enlever la couche alpha
 
         colormap = linear.viridis.scale(min_val, max_val)
@@ -168,7 +157,7 @@ def load_tif_data(tif_bytes):
 arr_1, bounds_1 = load_tif_data(tif_bytes_1)
 arr_2, bounds_2 = load_tif_data(tif_bytes_2)
 
-# Calculer le changement de la canopée
+# Calculer le changement de la canopée (sans normalisation)
 canopy_change = arr_2 - arr_1
 
 # Map for canopy change
@@ -185,7 +174,7 @@ colormap_change.caption = "Canopy Change (m)"
 colormap_change.add_to(m_change)
 
 folium.raster_layers.ImageOverlay(
-    image=(canopy_change - np.nanmin(canopy_change)) / (np.nanmax(canopy_change) - np.nanmin(canopy_change)),
+    image=canopy_change,
     bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
     opacity=0.6,
     name="Canopy Change"
@@ -219,7 +208,7 @@ colormap_ews.caption = "Canopy Change (m)"
 colormap_ews.add_to(m_ews)
 
 folium.raster_layers.ImageOverlay(
-    image=(canopy_change - np.nanmin(canopy_change)) / (np.nanmax(canopy_change) - np.nanmin(canopy_change)),
+    image=canopy_change,
     bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
     opacity=0.6,
     name="Canopy Change"
