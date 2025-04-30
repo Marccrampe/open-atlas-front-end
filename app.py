@@ -96,7 +96,7 @@ with MemoryFile(tif_bytes) as memfile:
         center = [(bounds.top + bounds.bottom) / 2, (bounds.left + bounds.right) / 2]
         m = folium.Map(location=center, zoom_start=13, tiles="Esri.WorldImagery")  # Utilisation du fond Esri
 
-        # Gestion des NaN avant la normalisation
+        # Normalisation (sans NaN)
         norm_arr = (arr - min_val) / (max_val - min_val)
         norm_arr = np.nan_to_num(norm_arr)  # Remplacer les NaN par 0
 
@@ -172,10 +172,12 @@ m_change = folium.Map(
     attr="Esri"  # Attribution pour Esri World Imagery
 )
 
-colormap_change = linear.PuBu_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
+# Création d'un colormap rouge-vert pour le changement de canopée
+colormap_change = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
 colormap_change.caption = "Canopy Change (m)"
 colormap_change.add_to(m_change)
 
+# Afficher l'image du changement de la canopée
 folium.raster_layers.ImageOverlay(
     image=canopy_change,
     bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
