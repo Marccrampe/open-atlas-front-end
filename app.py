@@ -130,3 +130,70 @@ with MemoryFile(tif_bytes) as memfile:
                     st.success(f"🌲 Canopy height at ({lat:.5f}, {lon:.5f}) is **{height_val:.2f} m**")
                 except:
                     st.error("Invalid pixel location.")
+
+# 2. Section Canopy Change between Dates
+st.markdown("### 2. Canopy Cover Change between Dates")
+selected_date_1 = st.selectbox("Select First Date", available_dates, key="date_1")
+selected_date_2 = st.selectbox("Select Second Date", available_dates, key="date_2")
+
+# Télécharger les fichiers TIFF pour les deux dates
+file_1 = aoi_dict[selected_aoi][selected_date_1]
+file_2 = aoi_dict[selected_aoi][selected_date_2]
+
+tif_obj_1 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_1)
+tif_bytes_1 = tif_obj_1['Body'].read()
+
+tif_obj_2 = s3_client.get_object(Bucket=s3_bucket_name, Key=file_2)
+tif_bytes_2 = tif_obj_2['Body'].read()
+
+# Charger les données des deux dates
+arr_1, bounds_1 = load_tif_data(tif_bytes_1)
+arr_2, bounds_2 = load_tif_data(tif_bytes_2)
+
+# Calculer le changement de la canopée
+canopy_change = arr_2 - arr_1
+
+# Map for canopy change
+st.markdown("### Map of Canopy Change")
+m_change = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13)
+colormap_change = linear.PuBu_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
+colormap_change.caption = "Canopy Change (m)"
+colormap_change.add_to(m_change)
+
+folium.raster_layers.ImageOverlay(
+    image=(canopy_change - np.nanmin(canopy_change)) / (np.nanmax(canopy_change) - np.nanmin(canopy_change)),
+    bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
+    opacity=0.6,
+    name="Canopy Change"
+).add_to(m_change)
+
+st_folium(m_change, width=1000, height=600)
+
+# 3. Section EWS Alert - Canopy Loss
+st.markdown("### 3. Early Warning System (EWS) - Canopy Loss")
+alert_threshold = 0.10  # Seuil de perte de 10%
+
+# Calculer le pourcentage de perte de canopée
+loss_area = np.count_nonzero(canopy_change < 0)
+total_area = np.count_nonzero(~np.isnan(canopy_change))
+loss_percentage = loss_area / total_area
+
+if loss_percentage > alert_threshold:
+    st.warning(f"🚨 Early Warning: Canopy loss exceeds {alert_threshold * 100}%!")
+else:
+    st.success("🌳 No significant loss detected!")
+
+# Afficher les cartes EWS avec le seuil d'alerte
+m_ews = folium.Map(location=[(bounds_1[1] + bounds_1[3]) / 2, (bounds_1[0] + bounds_1[2]) / 2], zoom_start=13)
+colormap_ews = linear.RdYlGn_09.scale(np.nanmin(canopy_change), np.nanmax(canopy_change))
+colormap_ews.caption = "Canopy Change (m)"
+colormap_ews.add_to(m_ews)
+
+folium.raster_layers.ImageOverlay(
+    image=(canopy_change - np.nanmin(canopy_change)) / (np.nanmax(canopy_change) - np.nanmin(canopy_change)),
+    bounds=[[bounds_1[1], bounds_1[0]], [bounds_1[3], bounds_1[2]]],
+    opacity=0.6,
+    name="Canopy Change"
+).add_to(m_ews)
+
+st_folium(m_ews, width=1000, height=600)
