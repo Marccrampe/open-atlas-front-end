@@ -172,34 +172,38 @@ if compute_change_button:
     col2.metric("🔻 Min Change", f"{min_change:.2f} m")
     col3.metric("🔺 Max Change", f"{max_change:.2f} m")
 
-    # Affichage de la carte avec la différence de hauteur de la canopée
-    center_change = [(start_src_change.bounds.top + start_src_change.bounds.bottom) / 2, (start_src_change.bounds.left + start_src_change.bounds.right) / 2]
-    m_change = folium.Map(location=center_change, zoom_start=13, tiles="Esri.WorldImagery")  # Fond ESRI
+    # --- Vérification des min_change et max_change ---
+    if np.isnan(min_change) or np.isnan(max_change):
+        st.error("Error: Invalid values for canopy change (NaN detected).")
+    else:
+        # Affichage de la carte avec la différence de hauteur de la canopée
+        center_change = [(start_src_change.bounds.top + start_src_change.bounds.bottom) / 2, (start_src_change.bounds.left + start_src_change.bounds.right) / 2]
+        m_change = folium.Map(location=center_change, zoom_start=13, tiles="Esri.WorldImagery")  # Fond ESRI
 
-    # Normalisation de la différence
-    norm_change = (canopy_change - min_change) / (max_change - min_change)
-    norm_change = np.nan_to_num(norm_change)  # Remplacer les NaN par 0
+        # Normalisation de la différence
+        norm_change = (canopy_change - min_change) / (max_change - min_change)
+        norm_change = np.nan_to_num(norm_change)  # Remplacer les NaN par 0
 
-    # Utilisation de la méthode matplotlib pour les couleurs
-    cmap = plt.cm.RdYlGn  # Utilisation d'un colormap avec rouge pour négatif et vert pour positif
-    rgba_img_change = (cmap(norm_change) * 255).astype(np.uint8)
-    rgb_img_change = rgba_img_change[:, :, :3]  # Enlever la couche alpha
+        # Utilisation de la méthode matplotlib pour les couleurs
+        cmap = plt.cm.RdYlGn  # Utilisation d'un colormap avec rouge pour négatif et vert pour positif
+        rgba_img_change = (cmap(norm_change) * 255).astype(np.uint8)
+        rgb_img_change = rgba_img_change[:, :, :3]  # Enlever la couche alpha
 
-    # Ajouter la carte et la superposition de l'image
-    colormap_change = linear.RdYlGn.scale(min_change, max_change)
-    colormap_change.caption = "Canopy Height Change (m)"
-    colormap_change.add_to(m_change)
+        # Ajouter la carte et la superposition de l'image
+        colormap_change = linear.RdYlGn.scale(min_change, max_change)
+        colormap_change.caption = "Canopy Height Change (m)"
+        colormap_change.add_to(m_change)
 
-    folium.raster_layers.ImageOverlay(
-        image=rgb_img_change,
-        bounds=[[start_src_change.bounds.bottom, start_src_change.bounds.left], [start_src_change.bounds.top, start_src_change.bounds.right]],
-        opacity=0.6,
-        name="Canopy Change"
-    ).add_to(m_change)
+        folium.raster_layers.ImageOverlay(
+            image=rgb_img_change,
+            bounds=[[start_src_change.bounds.bottom, start_src_change.bounds.left], [start_src_change.bounds.top, start_src_change.bounds.right]],
+            opacity=0.6,
+            name="Canopy Change"
+        ).add_to(m_change)
 
-    folium.LayerControl().add_to(m_change)
-    m_change.add_child(folium.LatLngPopup())
+        folium.LayerControl().add_to(m_change)
+        m_change.add_child(folium.LatLngPopup())
 
-    # Affichage de la carte dans Streamlit
-    st.markdown("### 🌍 Canopy Change Visualization")
-    result_change = st_folium(m_change, width=1000, height=600)
+        # Affichage de la carte dans Streamlit
+        st.markdown("### 🌍 Canopy Change Visualization")
+        result_change = st_folium(m_change, width=1000, height=600)
