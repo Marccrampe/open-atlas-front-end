@@ -163,6 +163,9 @@ arr_2, bounds_2 = load_tif_data(tif_bytes_2)
 # Calculer le changement de la canopée (sans normalisation)
 canopy_change = arr_2 - arr_1
 
+# Appliquer un facteur pour rendre le changement plus visible
+canopy_change = canopy_change * 10  # Multiplier par 10 pour amplifier les différences
+
 # Vérification des données avant affichage
 st.write("Canopy Change (raw):")
 st.write(canopy_change)
