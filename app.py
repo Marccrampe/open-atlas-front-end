@@ -33,7 +33,16 @@ def list_tif_files_from_s3(bucket_name, prefix):
     response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
     tif_files = [obj['Key'] for obj in response.get('Contents', []) if obj['Key'].endswith("_predictions.tif")]
     return tif_files
-
+    
+# Fonction pour charger les données des fichiers TIFF
+def load_tif_data(tif_bytes):
+    with MemoryFile(tif_bytes) as memfile:
+        with memfile.open() as src:
+            arr = src.read(1).astype(np.float32)
+            arr[arr <= 0] = np.nan  # Remplacer les valeurs faibles (e.g. 0) par NaN
+            bounds = src.bounds
+            return arr, bounds
+            
 # Extraire AOI et dates des fichiers TIF
 def extract_aoi_and_dates(tif_files):
     aoi_dict = {}  # {AOI: {date: filepath}}
