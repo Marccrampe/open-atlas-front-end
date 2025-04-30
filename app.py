@@ -190,7 +190,7 @@ if compute_change_button:
         rgb_img_change = rgba_img_change[:, :, :3]  # Enlever la couche alpha
 
         # Ajouter la carte et la superposition de l'image
-        colormap_change = linear.RdBu.scale(min_change, max_change)  # Utilisation de RdBu au lieu de RdYlGn
+        colormap_change = linear.RdYlGn.scale(min_change, max_change)
         colormap_change.caption = "Canopy Height Change (m)"
         colormap_change.add_to(m_change)
 
